@@ -25,12 +25,12 @@ A real-time interactive physics sandbox that visualizes electric and magnetic fi
 
 ## Project Structure
 
-electromagnetism-puzzle-game/
-└── src/
-├── main.py # Entry point of the game
-├── game.py # Main game loop and interaction logic
-├── ui.py # UI rendering (menus, overlays)
-└── physics.py # Physics engine using OpenCL
+electromagnetism-puzzle-game/ <br>
+└── src/<br>
+├── main.py # Entry point of the game<br>
+├── game.py # Main game loop and interaction logic<br>
+├── ui.py # UI rendering (menus, overlays)<br>
+└── physics.py # Physics engine using OpenCL<br>
 
 ---
 

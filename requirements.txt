@@ -1,3 +1,3 @@
-pygame
-numpy
-pyopencl
+pygame>=2.6.1
+numpy>=1.26.4
+pyopencl>=2024.1; sys_platform != 'emscripten'

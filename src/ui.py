@@ -1,11 +1,11 @@
 import pygame
 
-WIDTH = 1366 # or whatever the desired width is
-HEIGHT = 768  # or whatever the desired height is
+WIDTH = 800
+HEIGHT = 600
 
 def draw_title_screen(screen):
     font = pygame.font.SysFont("Arial", 48)
-    title = font.render("Electromagnetism Puzzle Game", True, (255, 255, 255))
+    title = font.render("Electromagnetism Maze Game", True, (255, 255, 255))
     prompt = pygame.font.SysFont("Arial", 24).render("Press any key to continue...", True, (180, 180, 180))
     screen.blit(title, (100, 200))
     screen.blit(prompt, (230, 300))
@@ -30,13 +30,23 @@ def draw_level_select_screen(screen, unlocked):
         text = font.render(label, True, color)
         screen.blit(text, (x + 10, y + 10))
 
-def draw_game_ui(screen, level, time_sec, paused):
-    font = pygame.font.SysFont("Arial", 24)
-    time_text = font.render(f"Level {level}  |  Time: {time_sec}s", True, (255, 255, 255))
-    screen.blit(time_text, (10, 10))
-    if paused:
-        pause = pygame.font.SysFont("Arial", 32).render("PAUSED", True, (255, 100, 100))
-        screen.blit(pause, (WIDTH//2 - 60, 40))
+def draw_game_ui(screen, level, time_sec, paused, game_charge_val, status_message):
+    font = pygame.font.SysFont("Arial", 28)
+    if level:
+        time_text = font.render(f"Level {level}  |  Time: {time_sec}s", True, (255, 255, 255))
+        charge_type = "Positive" if game_charge_val > 0 else "Negative"
+        instructions = font.render(f"Left: +Charge, Right: -Charge, C: Remove | Target: {charge_type}", True, (255, 255, 255))
+        status = font.render(status_message, True, (255, 100, 100)) if status_message else None
+        screen.blit(time_text, (10, 10))
+        screen.blit(instructions, (10, 40))
+        if status:
+            screen.blit(status, (10, 70))
+        if paused:
+            pause = pygame.font.SysFont("Arial", 32).render("PAUSED", True, (255, 100, 100))
+            screen.blit(pause, (WIDTH//2 - 60, 40))
+    else:
+        instructions = font.render("Left: +Charge, Right: -Charge, L: Loop", True, (255, 255, 255))
+        screen.blit(instructions, (10, 10))
 
 def draw_pause_menu(screen):
     font = pygame.font.SysFont("Arial", 28)

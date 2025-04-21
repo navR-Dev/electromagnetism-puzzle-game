@@ -33,33 +33,40 @@ def compute_fields(charges, charge_vals, loops, width, height):
         int y = get_global_id(1);
         int idx = (y * width + x) * 2;
 
+        float px = x * spacing;
+        float py = y * spacing;
+
         float fx = 0.0f;
         float fy = 0.0f;
 
+        // Electric field from point charges
         for (int i = 0; i < num_charges; i++) {
             float cx = charges[i*3];
             float cy = charges[i*3+1];
             float val = charges[i*3+2];
 
-            float dx = x * spacing - cx;
-            float dy = y * spacing - cy;
-            float dist_sq = dx*dx + dy*dy + 10.0f;
-            float factor = val / dist_sq;
+            float dx = px - cx;
+            float dy = py - cy;
+            float dist_sq = dx*dx + dy*dy + 25.0f;
+            float dist = sqrt(dist_sq);
 
-            fx += factor * dx;
-            fy += factor * dy;
+            float e_strength = val / (dist_sq);  // Softened inverse-square
+            fx += e_strength * dx / dist;
+            fy += e_strength * dy / dist;
         }
 
+        // Magnetic field from current loops (2D Biot–Savart approximation)
         for (int i = 0; i < num_loops; i++) {
             float lx = loops[i*2];
             float ly = loops[i*2+1];
 
-            float dx = x * spacing - lx;
-            float dy = y * spacing - ly;
-            float dist_sq = dx*dx + dy*dy + 10.0f;
+            float dx = px - lx;
+            float dy = py - ly;
+            float dist_sq = dx*dx + dy*dy + 25.0f;
 
-            fx += -dy / dist_sq;
-            fy += dx / dist_sq;
+            float b_strength = 100.0f / dist_sq;  // Tunable constant
+            fx += -b_strength * dy;  // Perpendicular vector (curl)
+            fy +=  b_strength * dx;
         }
 
         field[idx] = fx;

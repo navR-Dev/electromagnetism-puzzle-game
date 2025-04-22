@@ -4,7 +4,7 @@ import pygame
 import numpy as np
 import os
 import json
-from ui import draw_title_screen, draw_menu_screen, draw_level_select_screen, draw_game_ui, draw_pause_menu
+from ui import draw_title_screen, draw_menu_screen, draw_level_select_screen, draw_game_ui, draw_pause_menu, draw_menu_prompt
 from physics import compute_field_at_point, compute_field_grid
 from levels import LEVELS, load_progress as load_levels_progress, save_progress as save_levels_progress
 
@@ -53,6 +53,20 @@ async def run_game(screen):
             if event.type == pygame.QUIT:
                 save_game_progress(progress)
                 return
+
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_m:
+                if state in ["level_select", "play_level", "free_play"]:
+                    state = "menu"
+                    paused = False
+                    placed_charges = []
+                    placed_charge_vals = []
+                    loops = []
+                    status_message = ""
+                    selected_level = None
+                    game_charge_pos = [0, 0]
+                    game_charge_vel = [0, 0]
+                    win_zone = None
+                    walls = []
 
             if state == "title" and event.type == pygame.KEYDOWN:
                 state = "menu"
@@ -108,8 +122,16 @@ async def run_game(screen):
                         status_message = ""
                         print(f"Level {selected_level} restarted: game_charge_pos={game_charge_pos}")
                     elif paused and event.key == pygame.K_b:
-                        state = "level_select"
+                        state = "menu"
                         paused = False
+                        placed_charges = []
+                        placed_charge_vals = []
+                        status_message = ""
+                        selected_level = None
+                        game_charge_pos = [0, 0]
+                        game_charge_vel = [0, 0]
+                        win_zone = None
+                        walls = []
                     elif not paused and event.key == pygame.K_c:
                         if placed_charges:
                             distances = [((mouse_pos[0] - c[0])**2 + (mouse_pos[1] - c[1])**2) for c in placed_charges]
@@ -198,6 +220,7 @@ async def run_game(screen):
             draw_menu_screen(screen)
         elif state == "level_select":
             draw_level_select_screen(screen, progress["unlocked"])
+            draw_menu_prompt(screen)
         elif state == "free_play":
             field = compute_field_grid(placed_charges, placed_charge_vals, loops, WIDTH, HEIGHT)
             for y in range(0, HEIGHT, GRID_SIZE):
@@ -209,6 +232,7 @@ async def run_game(screen):
                 pygame.draw.circle(screen, color, c, 5)
             for l in loops:
                 pygame.draw.circle(screen, (0, 0, 255), l, 5)
+            draw_menu_prompt(screen)
         elif state == "play_level":
             time_elapsed = (pygame.time.get_ticks() - level_start_time) // 1000
 

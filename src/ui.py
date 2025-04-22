@@ -36,11 +36,13 @@ def draw_game_ui(screen, level, time_sec, paused, game_charge_val, status_messag
         time_text = font.render(f"Level {level}  |  Time: {time_sec}s", True, (255, 255, 255))
         charge_type = "Positive" if game_charge_val > 0 else "Negative"
         instructions = font.render(f"Left: +Charge, Right: -Charge, C: Remove | Target: {charge_type}", True, (255, 255, 255))
+        menu_prompt = font.render("M: Menu", True, (180, 180, 180))
         status = font.render(status_message, True, (255, 100, 100)) if status_message else None
         screen.blit(time_text, (10, 10))
         screen.blit(instructions, (10, 40))
+        screen.blit(menu_prompt, (10, 70))
         if status:
-            screen.blit(status, (10, 70))
+            screen.blit(status, (10, 100))
         if paused:
             pause = pygame.font.SysFont("Arial", 32).render("PAUSED", True, (255, 100, 100))
             screen.blit(pause, (WIDTH//2 - 60, 40))
@@ -79,3 +81,8 @@ def draw_pause_menu(screen):
 
         text = button_font.render(label, True, (255, 255, 255))
         screen.blit(text, (button_rect.centerx - text.get_width() // 2, button_rect.centery - text.get_height() // 2))
+
+def draw_menu_prompt(screen):
+    font = pygame.font.SysFont("Arial", 24)
+    prompt = font.render("Press M for Menu", True, (180, 180, 180))
+    screen.blit(prompt, (10, HEIGHT - 40))

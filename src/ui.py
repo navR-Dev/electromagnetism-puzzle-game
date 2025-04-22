@@ -49,8 +49,33 @@ def draw_game_ui(screen, level, time_sec, paused, game_charge_val, status_messag
         screen.blit(instructions, (10, 10))
 
 def draw_pause_menu(screen):
-    font = pygame.font.SysFont("Arial", 28)
-    msg1 = font.render("Press R to restart level", True, (255, 255, 255))
-    msg2 = font.render("Press B to go back to level select", True, (255, 255, 255))
-    screen.blit(msg1, (200, 300))
-    screen.blit(msg2, (200, 340))
+    overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+    overlay.fill((0, 0, 0, 180))  # semi-transparent black overlay
+    screen.blit(overlay, (0, 0))
+
+    font = pygame.font.SysFont("Arial", 32, bold=True)
+    button_font = pygame.font.SysFont("Arial", 28)
+
+    # Draw pause box
+    box_rect = pygame.Rect(WIDTH // 2 - 150, HEIGHT // 2 - 150, 300, 300)
+    pygame.draw.rect(screen, (50, 50, 50), box_rect, border_radius=15)
+    pygame.draw.rect(screen, (255, 255, 255), box_rect, 4, border_radius=15)
+
+    # Pause title
+    title_text = font.render("Game Paused", True, (255, 255, 255))
+    screen.blit(title_text, (WIDTH // 2 - title_text.get_width() // 2, box_rect.top + 20))
+
+    # Buttons
+    buttons = [
+        ("Resume (Esc)", HEIGHT // 2 - 40),
+        ("Restart (R)", HEIGHT // 2 + 10),
+        ("Back to Menu (B)", HEIGHT // 2 + 60),
+    ]
+
+    for label, y in buttons:
+        button_rect = pygame.Rect(WIDTH // 2 - 110, y, 220, 40)
+        pygame.draw.rect(screen, (100, 100, 100), button_rect, border_radius=10)
+        pygame.draw.rect(screen, (255, 255, 255), button_rect, 2, border_radius=10)
+
+        text = button_font.render(label, True, (255, 255, 255))
+        screen.blit(text, (button_rect.centerx - text.get_width() // 2, button_rect.centery - text.get_height() // 2))

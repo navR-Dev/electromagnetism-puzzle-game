@@ -1,4 +1,6 @@
 import pygame
+import concurrent.futures
+import os
 
 WIDTH = 800
 HEIGHT = 600
@@ -19,15 +21,33 @@ def draw_menu_screen(screen):
     screen.blit(level_button, (320, 255))
     screen.blit(free_play_button, (320, 355))
 
-def draw_level_select_screen(screen, unlocked):
+def render_level_button(i, unlocked):
+    # Create a new font instance for thread safety
     font = pygame.font.SysFont("Arial", 24)
-    for i in range(30):
-        x = 100 + (i % 8) * 80
-        y = 100 + (i // 8) * 60
-        label = f"L{i+1}"
-        color = (255, 255, 255) if i < unlocked else (100, 100, 100)
+    label = f"L{i+1}"
+    color = (255, 255, 255) if i < unlocked else (100, 100, 100)
+    text = font.render(label, True, color)
+    x = 100 + (i % 8) * 80
+    y = 100 + (i // 8) * 60
+    return i, text, x, y
+
+def draw_level_select_screen(screen, unlocked):
+    # Parallelize text rendering
+    max_workers = min(30, os.cpu_count() or 4)
+    try:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = [executor.submit(render_level_button, i, unlocked) for i in range(30)]
+            results = [f.result() for f in concurrent.futures.as_completed(futures)]
+    except Exception:
+        # Fallback to sequential rendering if parallel fails (e.g., Emscripten)
+        results = [render_level_button(i, unlocked) for i in range(30)]
+
+    # Sort results by index to maintain order
+    results.sort(key=lambda x: x[0])
+
+    # Draw rectangles and blit text surfaces sequentially
+    for _, text, x, y in results:
         pygame.draw.rect(screen, (50, 50, 50), (x, y, 60, 40))
-        text = font.render(label, True, color)
         screen.blit(text, (x + 10, y + 10))
 
 def draw_game_ui(screen, level, time_sec, paused, game_charge_val, status_message):

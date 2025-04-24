@@ -28,16 +28,19 @@ __kernel void compute_field_grid(
     float fx = 0.0f;
     float fy = 0.0f;
     const float k = 1000.0f;
+    const float max_dist_sq = 40000.0f; // 200 pixels squared
 
     // Electric field from charges
     for (int i = 0; i < num_charges; i++) {
         float dx = px - charges[i].x;
         float dy = py - charges[i].y;
         float dist_sq = dx*dx + dy*dy + 5.0f;
-        float dist = sqrt(dist_sq);
-        float e_strength = k * charge_val * charge_vals[i] / dist_sq;
-        fx += e_strength * dx / dist;
-        fy += e_strength * dy / dist;
+        if (dist_sq <= max_dist_sq) {
+            float dist = sqrt(dist_sq);
+            float e_strength = k * charge_val * charge_vals[i] / dist_sq;
+            fx += e_strength * dx / dist;
+            fy += e_strength * dy / dist;
+        }
     }
 
     // Magnetic field from loops
@@ -45,9 +48,11 @@ __kernel void compute_field_grid(
         float dx = px - loops[i].x;
         float dy = py - loops[i].y;
         float dist_sq = dx*dx + dy*dy + 5.0f;
-        float b_strength = 100.0f / dist_sq;
-        fx += -b_strength * dy;
-        fy += b_strength * dx;
+        if (dist_sq <= max_dist_sq) {
+            float b_strength = 100.0f / dist_sq;
+            fx += -b_strength * dy;
+            fy += b_strength * dx;
+        }
     }
 
     field[y * size_x + x] = (float2)(fx, fy);
@@ -66,24 +71,29 @@ __kernel void compute_field_point(
     float fx = 0.0f;
     float fy = 0.0f;
     const float k = 1000.0f;
+    const float max_dist_sq = 40000.0f; // 200 pixels squared
 
     for (int i = 0; i < num_charges; i++) {
         float dx = px - charges[i].x;
         float dy = py - charges[i].y;
         float dist_sq = dx*dx + dy*dy + 5.0f;
-        float dist = sqrt(dist_sq);
-        float e_strength = k * charge_val * charge_vals[i] / dist_sq;
-        fx += e_strength * dx / dist;
-        fy += e_strength * dy / dist;
+        if (dist_sq <= max_dist_sq) {
+            float dist = sqrt(dist_sq);
+            float e_strength = k * charge_val * charge_vals[i] / dist_sq;
+            fx += e_strength * dx / dist;
+            fy += e_strength * dy / dist;
+        }
     }
 
     for (int i = 0; i < num_loops; i++) {
         float dx = px - loops[i].x;
         float dy = py - loops[i].y;
         float dist_sq = dx*dx + dy*dy + 5.0f;
-        float b_strength = 100.0f / dist_sq;
-        fx += -b_strength * dy;
-        fy += b_strength * dx;
+        if (dist_sq <= max_dist_sq) {
+            float b_strength = 100.0f / dist_sq;
+            fx += -b_strength * dy;
+            fy += b_strength * dx;
+        }
     }
 
     result[0] = fx;
@@ -165,6 +175,7 @@ def compute_field_at_point(pos, charges, charge_vals, loops, charge_val):
     px, py = pos
     fx, fy = 0.0, 0.0
     k = 1000.0
+    max_dist_sq = 40000.0  # 200 pixels squared
 
     if OPENCL_AVAILABLE and OPENCL_CTX:
         # PyOpenCL: Single-point computation
@@ -200,17 +211,19 @@ def compute_field_at_point(pos, charges, charge_vals, loops, charge_val):
         dx = px - cx
         dy = py - cy
         dist_sq = dx*dx + dy*dy + 5.0
-        dist = np.sqrt(dist_sq)
-        e_strength = k * charge_val * val / dist_sq
-        fx += e_strength * dx / dist
-        fy += e_strength * dy / dist
+        if dist_sq <= max_dist_sq:
+            dist = np.sqrt(dist_sq)
+            e_strength = k * charge_val * val / dist_sq
+            fx += e_strength * dx / dist
+            fy += e_strength * dy / dist
 
     for lx, ly in loops:
         dx = px - lx
         dy = py - ly
         dist_sq = dx*dx + dy*dy + 5.0
-        b_strength = 100.0 / dist_sq
-        fx += -b_strength * dy
-        fy += b_strength * dx
+        if dist_sq <= max_dist_sq:
+            b_strength = 100.0 / dist_sq
+            fx += -b_strength * dy
+            fy += b_strength * dx
 
     return fx, fy

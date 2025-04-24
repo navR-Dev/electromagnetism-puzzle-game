@@ -140,6 +140,8 @@ async def run_game(screen):
                                 placed_charges.pop(idx)
                                 placed_charge_vals.pop(idx)
                                 status_message = "Charge removed"
+                                if not placed_charges:  # Reset velocity if no charges remain
+                                    game_charge_vel = [0, 0]
                             else:
                                 status_message = "No charge nearby to remove"
                         else:
@@ -172,17 +174,14 @@ async def run_game(screen):
             fx, fy = compute_field_at_point(game_charge_pos, placed_charges, placed_charge_vals, [], game_charge_val)
             print(f"Position: {game_charge_pos}, Velocity: {game_charge_vel}, Force: ({fx:.2f}, {fy:.2f})")
             game_charge_vel[0] += fx * 0.02
-            game_charge_vel[1] += fy * 0.02 + 0.01
+            game_charge_vel[1] += fy * 0.02
 
             speed = np.sqrt(game_charge_vel[0]**2 + game_charge_vel[1]**2)
-            max_speed = 5.0
+            max_speed = 7.0
             if speed > max_speed:
                 scale = max_speed / speed
                 game_charge_vel[0] *= scale
                 game_charge_vel[1] *= scale
-
-            game_charge_vel[0] *= 0.98
-            game_charge_vel[1] *= 0.98
 
             new_pos = [game_charge_pos[0] + game_charge_vel[0], game_charge_pos[1] + game_charge_vel[1]]
 
@@ -228,7 +227,7 @@ async def run_game(screen):
                     fx, fy = field[y//GRID_SIZE][x//GRID_SIZE]
                     pygame.draw.line(screen, (0, 255, 255), (x, y), (x + fx * 2, y + fy * 2), 1)
             for c, v in zip(placed_charges, placed_charge_vals):
-                color = (255, 255, 0) if v > 0 else (255, 0, 0)
+                color = (255, 0, 0) if v > 0 else (0, 0, 255)  # Positive: Red, Negative: Blue
                 pygame.draw.circle(screen, color, c, 5)
             for l in loops:
                 pygame.draw.circle(screen, (0, 0, 255), l, 5)
@@ -239,12 +238,12 @@ async def run_game(screen):
             for wall in walls:
                 pygame.draw.rect(screen, (100, 100, 100), wall)
 
-            color = (255, 0, 0) if game_charge_val > 0 else (0, 0, 255)
+            color = (255, 0, 0) if game_charge_val > 0 else (0, 0, 255)  # Positive: Red, Negative: Blue
             pygame.draw.circle(screen, color, (int(game_charge_pos[0]), int(game_charge_pos[1])), 10)
             print(f"Drawing game charge at {game_charge_pos}")
 
             for c, v in zip(placed_charges, placed_charge_vals):
-                color = (255, 255, 0) if v > 0 else (255, 0, 0)
+                color = (255, 0, 0) if v > 0 else (0, 0, 255)  # Positive: Red, Negative: Blue
                 pygame.draw.circle(screen, color, c, 5)
 
             pygame.draw.circle(screen, (0, 255, 0), win_zone, 10)

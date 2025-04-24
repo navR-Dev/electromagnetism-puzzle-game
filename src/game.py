@@ -13,6 +13,7 @@ GRID_SIZE = 20
 FPS = 60
 PROGRESS_FILE = "progress.json"
 MAX_CHARGES = 5
+MAX_MAGNETS = 5
 
 def load_game_progress():
     if platform.system() != "Emscripten" and os.path.exists(PROGRESS_FILE):
@@ -40,9 +41,10 @@ async def run_game(screen):
     game_charge_val = 50
     placed_charges = []
     placed_charge_vals = []
+    placed_magnets = []  # Renamed from loops for clarity
     win_zone = None
     walls = []
-    loops = []
+    loops = []  # Used only in free play
 
     load_levels_progress()
 
@@ -53,20 +55,6 @@ async def run_game(screen):
             if event.type == pygame.QUIT:
                 save_game_progress(progress)
                 return
-
-            if event.type == pygame.KEYDOWN and event.key == pygame.K_m:
-                if state in ["level_select", "play_level", "free_play"]:
-                    state = "menu"
-                    paused = False
-                    placed_charges = []
-                    placed_charge_vals = []
-                    loops = []
-                    status_message = ""
-                    selected_level = None
-                    game_charge_pos = [0, 0]
-                    game_charge_vel = [0, 0]
-                    win_zone = None
-                    walls = []
 
             if state == "title" and event.type == pygame.KEYDOWN:
                 state = "menu"
@@ -97,6 +85,7 @@ async def run_game(screen):
                     game_charge_vel = [0, 0]
                     placed_charges = []
                     placed_charge_vals = []
+                    placed_magnets = []
                     level_start_time = pygame.time.get_ticks()
                     time_elapsed = 0
                     state = "play_level"
@@ -105,7 +94,7 @@ async def run_game(screen):
 
             elif state == "play_level":
                 if event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_ESCAPE:
+                    if event.key == pygame.K_m:
                         paused = not paused
                     elif paused and event.key == pygame.K_r:
                         data = LEVELS[str(selected_level)]
@@ -116,6 +105,7 @@ async def run_game(screen):
                         game_charge_vel = [0, 0]
                         placed_charges = []
                         placed_charge_vals = []
+                        placed_magnets = []
                         level_start_time = pygame.time.get_ticks()
                         time_elapsed = 0
                         paused = False
@@ -126,26 +116,44 @@ async def run_game(screen):
                         paused = False
                         placed_charges = []
                         placed_charge_vals = []
+                        placed_magnets = []
                         status_message = ""
                         selected_level = None
                         game_charge_pos = [0, 0]
                         game_charge_vel = [0, 0]
                         win_zone = None
                         walls = []
+                    elif paused and event.key == pygame.K_q:
+                        save_game_progress(progress)
+                        return
                     elif not paused and event.key == pygame.K_c:
-                        if placed_charges:
-                            distances = [((mouse_pos[0] - c[0])**2 + (mouse_pos[1] - c[1])**2) for c in placed_charges]
-                            if min(distances) < 2500:  # Within 50 pixels
-                                idx = distances.index(min(distances))
+                        # Remove nearest charge or magnet within 50 pixels
+                        if placed_charges or placed_magnets:
+                            charge_distances = [((mouse_pos[0] - c[0])**2 + (mouse_pos[1] - c[1])**2) for c in placed_charges] if placed_charges else [float('inf')]
+                            magnet_distances = [((mouse_pos[0] - m[0])**2 + (mouse_pos[1] - m[1])**2) for m in placed_magnets] if placed_magnets else [float('inf')]
+                            min_charge_dist = min(charge_distances) if placed_charges else float('inf')
+                            min_magnet_dist = min(magnet_distances) if placed_magnets else float('inf')
+                            if min_charge_dist < 2500 and min_charge_dist <= min_magnet_dist:
+                                idx = charge_distances.index(min_charge_dist)
                                 placed_charges.pop(idx)
                                 placed_charge_vals.pop(idx)
                                 status_message = "Charge removed"
-                                if not placed_charges:  # Reset velocity if no charges remain
-                                    game_charge_vel = [0, 0]
+                            elif min_magnet_dist < 2500:
+                                idx = magnet_distances.index(min_magnet_dist)
+                                placed_magnets.pop(idx)
+                                status_message = "Magnet removed"
                             else:
-                                status_message = "No charge nearby to remove"
+                                status_message = "No charge or magnet nearby to remove"
+                            if not placed_charges and not placed_magnets:
+                                game_charge_vel = [0, 0]
                         else:
-                            status_message = "No charges to remove"
+                            status_message = "No charges or magnets to remove"
+                    elif not paused and event.key == pygame.K_n:  # Changed from K_m to K_n
+                        if len(placed_magnets) < MAX_MAGNETS:
+                            placed_magnets.append(list(mouse_pos))
+                            status_message = ""
+                        else:
+                            status_message = "Max magnets reached (5)"
                 elif not paused and event.type == pygame.MOUSEBUTTONDOWN:
                     if len(placed_charges) < MAX_CHARGES:
                         if event.button == 1:
@@ -160,18 +168,37 @@ async def run_game(screen):
                         status_message = "Max charges reached (5)"
 
             elif state == "free_play":
-                if event.type == pygame.MOUSEBUTTONDOWN:
+                if event.type == pygame.MOUSEBUTTONDOWN and not paused:
                     if event.button == 1:
                         placed_charges.append(list(mouse_pos))
                         placed_charge_vals.append(50)
                     elif event.button == 3:
                         placed_charges.append(list(mouse_pos))
                         placed_charge_vals.append(-50)
-                elif event.type == pygame.KEYDOWN and event.key == pygame.K_l:
-                    loops.append(list(mouse_pos))
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_m:
+                        paused = not paused
+                    elif not paused and event.key == pygame.K_l:
+                        loops.append(list(mouse_pos))
+                    elif paused and event.key == pygame.K_r:
+                        placed_charges = []
+                        placed_charge_vals = []
+                        loops = []
+                        paused = False
+                        status_message = ""
+                    elif paused and event.key == pygame.K_b:
+                        state = "menu"
+                        paused = False
+                        placed_charges = []
+                        placed_charge_vals = []
+                        loops = []
+                        status_message = ""
+                    elif paused and event.key == pygame.K_q:
+                        save_game_progress(progress)
+                        return
 
         if state == "play_level" and not paused:
-            fx, fy = compute_field_at_point(game_charge_pos, placed_charges, placed_charge_vals, [], game_charge_val)
+            fx, fy = compute_field_at_point(game_charge_pos, placed_charges, placed_charge_vals, placed_magnets, game_charge_val, game_charge_vel)
             print(f"Position: {game_charge_pos}, Velocity: {game_charge_vel}, Force: ({fx:.2f}, {fy:.2f})")
             game_charge_vel[0] += fx * 0.02
             game_charge_vel[1] += fy * 0.02
@@ -221,17 +248,27 @@ async def run_game(screen):
             draw_level_select_screen(screen, progress["unlocked"])
             draw_menu_prompt(screen)
         elif state == "free_play":
-            field = compute_field_grid(placed_charges, placed_charge_vals, loops, WIDTH, HEIGHT)
+            # Visualize electric and magnetic fields separately
+            electric_field = compute_field_grid(placed_charges, placed_charge_vals, loops, WIDTH, HEIGHT, compute_electric=True, compute_magnetic=False)
+            magnetic_field = compute_field_grid(placed_charges, placed_charge_vals, loops, WIDTH, HEIGHT, compute_electric=False, compute_magnetic=True)
             for y in range(0, HEIGHT, GRID_SIZE):
                 for x in range(0, WIDTH, GRID_SIZE):
-                    fx, fy = field[y//GRID_SIZE][x//GRID_SIZE]
-                    pygame.draw.line(screen, (0, 255, 255), (x, y), (x + fx * 2, y + fy * 2), 1)
+                    efx, efy = electric_field[y//GRID_SIZE][x//GRID_SIZE]
+                    mfx, mfy = magnetic_field[y//GRID_SIZE][x//GRID_SIZE]
+                    # Draw electric field lines in yellow
+                    if efx != 0 or efy != 0:
+                        pygame.draw.line(screen, (255, 255, 0), (x, y), (x + efx * 2, y + efy * 2), 1)
+                    # Draw magnetic field lines in magenta
+                    if mfx != 0 or mfy != 0:
+                        pygame.draw.line(screen, (255, 0, 255), (x, y), (x + mfx * 2, y + mfy * 2), 1)
             for c, v in zip(placed_charges, placed_charge_vals):
                 color = (255, 0, 0) if v > 0 else (0, 0, 255)  # Positive: Red, Negative: Blue
                 pygame.draw.circle(screen, color, c, 5)
             for l in loops:
-                pygame.draw.circle(screen, (0, 0, 255), l, 5)
-            draw_menu_prompt(screen)
+                pygame.draw.circle(screen, (0, 255, 255), l, 5)  # Cyan for loops
+            draw_game_ui(screen, None, 0, paused, 0, status_message)
+            if paused:
+                draw_pause_menu(screen, None)
         elif state == "play_level":
             time_elapsed = (pygame.time.get_ticks() - level_start_time) // 1000
 
@@ -246,12 +283,15 @@ async def run_game(screen):
                 color = (255, 0, 0) if v > 0 else (0, 0, 255)  # Positive: Red, Negative: Blue
                 pygame.draw.circle(screen, color, c, 5)
 
+            for m in placed_magnets:
+                pygame.draw.circle(screen, (0, 255, 255), m, 5)  # Cyan for magnets
+
             pygame.draw.circle(screen, (0, 255, 0), win_zone, 10)
 
             draw_game_ui(screen, selected_level, time_elapsed, paused, game_charge_val, status_message)
 
             if paused:
-                draw_pause_menu(screen)
+                draw_pause_menu(screen, selected_level)
 
         pygame.display.flip()
         clock.tick(FPS)

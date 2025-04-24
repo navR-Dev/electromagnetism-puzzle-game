@@ -17,6 +17,8 @@ __kernel void compute_field_grid(
     const int size_y,
     const int spacing,
     const float charge_val,
+    const int compute_electric,
+    const int compute_magnetic,
     __global float2 *field)
 {
     int x = get_global_id(0);
@@ -28,6 +30,56 @@ __kernel void compute_field_grid(
     float fx = 0.0f;
     float fy = 0.0f;
     const float k = 1000.0f;
+    const float max_dist_sq = 40000.0f; // 200 pixels squared
+
+    // Electric field from charges
+    if (compute_electric) {
+        for (int i = 0; i < num_charges; i++) {
+            float dx = px - charges[i].x;
+            float dy = py - charges[i].y;
+            float dist_sq = dx*dx + dy*dy + 5.0f;
+            if (dist_sq <= max_dist_sq) {
+                float dist = sqrt(dist_sq);
+                float e_strength = k * charge_val * charge_vals[i] / dist_sq;
+                fx += e_strength * dx / dist;
+                fy += e_strength * dy / dist;
+            }
+        }
+    }
+
+    // Magnetic field visualization (for free play, no velocity dependence)
+    if (compute_magnetic) {
+        for (int i = 0; i < num_loops; i++) {
+            float dx = px - loops[i].x;
+            float dy = py - loops[i].y;
+            float dist_sq = dx*dx + dy*dy + 5.0f;
+            if (dist_sq <= max_dist_sq) {
+                float b_strength = 100.0f / dist_sq;
+                fx += -b_strength * dy;
+                fy += b_strength * dx;
+            }
+        }
+    }
+
+    field[y * size_x + x] = (float2)(fx, fy);
+}
+__kernel void compute_field_point(
+    __global const float2 *charges,
+    __global const float *charge_vals,
+    __global const float2 *loops,
+    const int num_charges,
+    const int num_loops,
+    const float px,
+    const float py,
+    const float charge_val,
+    const float vx,
+    const float vy,
+    __global float *result)
+{
+    float fx = 0.0f;
+    float fy = 0.0f;
+    const float k = 1000.0f;
+    const float k_b = 100.0f; // Magnetic field constant
     const float max_dist_sq = 40000.0f; // 200 pixels squared
 
     // Electric field from charges
@@ -43,56 +95,15 @@ __kernel void compute_field_grid(
         }
     }
 
-    // Magnetic field from loops
+    // Magnetic force from loops (depends on velocity)
     for (int i = 0; i < num_loops; i++) {
         float dx = px - loops[i].x;
         float dy = py - loops[i].y;
         float dist_sq = dx*dx + dy*dy + 5.0f;
         if (dist_sq <= max_dist_sq) {
-            float b_strength = 100.0f / dist_sq;
-            fx += -b_strength * dy;
-            fy += b_strength * dx;
-        }
-    }
-
-    field[y * size_x + x] = (float2)(fx, fy);
-}
-__kernel void compute_field_point(
-    __global const float2 *charges,
-    __global const float *charge_vals,
-    __global const float2 *loops,
-    const int num_charges,
-    const int num_loops,
-    const float px,
-    const float py,
-    const float charge_val,
-    __global float *result)
-{
-    float fx = 0.0f;
-    float fy = 0.0f;
-    const float k = 1000.0f;
-    const float max_dist_sq = 40000.0f; // 200 pixels squared
-
-    for (int i = 0; i < num_charges; i++) {
-        float dx = px - charges[i].x;
-        float dy = py - charges[i].y;
-        float dist_sq = dx*dx + dy*dy + 5.0f;
-        if (dist_sq <= max_dist_sq) {
-            float dist = sqrt(dist_sq);
-            float e_strength = k * charge_val * charge_vals[i] / dist_sq;
-            fx += e_strength * dx / dist;
-            fy += e_strength * dy / dist;
-        }
-    }
-
-    for (int i = 0; i < num_loops; i++) {
-        float dx = px - loops[i].x;
-        float dy = py - loops[i].y;
-        float dist_sq = dx*dx + dy*dy + 5.0f;
-        if (dist_sq <= max_dist_sq) {
-            float b_strength = 100.0f / dist_sq;
-            fx += -b_strength * dy;
-            fy += b_strength * dx;
+            float b_z = k_b / dist_sq; // Magnetic field strength (out of plane)
+            fx += -charge_val * b_z * vy; // F_x = -q * B_z * v_y
+            fy += charge_val * b_z * vx;  // F_y = q * B_z * v_x
         }
     }
 
@@ -127,7 +138,7 @@ def get_opencl_context():
 OPENCL_CTX, OPENCL_QUEUE = get_opencl_context()
 OPENCL_PRG = cl.Program(OPENCL_CTX, FIELD_KERNEL).build() if OPENCL_CTX else None
 
-def compute_field_grid(charges, charge_vals, loops, width, height):
+def compute_field_grid(charges, charge_vals, loops, width, height, compute_electric=True, compute_magnetic=True):
     spacing = 20
     size_x = width // spacing
     size_y = height // spacing
@@ -156,7 +167,8 @@ def compute_field_grid(charges, charge_vals, loops, width, height):
             charges_buf, charge_vals_buf, loops_buf,
             np.int32(num_charges), np.int32(num_loops),
             np.int32(size_x), np.int32(size_y), np.int32(spacing),
-            np.float32(1.0), field_buf
+            np.float32(1.0), np.int32(compute_electric), np.int32(compute_magnetic),
+            field_buf
         )
         cl.enqueue_copy(OPENCL_QUEUE, field_np, field_buf)
         OPENCL_QUEUE.finish()
@@ -167,14 +179,16 @@ def compute_field_grid(charges, charge_vals, loops, width, height):
     for y in range(size_y):
         for x in range(size_x):
             px, py = x * spacing, y * spacing
-            fx, fy = compute_field_at_point((px, py), charges, charge_vals, loops, 1.0)
+            fx, fy = compute_field_at_point((px, py), charges, charge_vals, loops, 1.0, (0.0, 0.0), compute_electric, compute_magnetic)
             field[y, x] = [fx, fy]
     return field
 
-def compute_field_at_point(pos, charges, charge_vals, loops, charge_val):
+def compute_field_at_point(pos, charges, charge_vals, loops, charge_val, velocity=(0.0, 0.0), compute_electric=True, compute_magnetic=True):
     px, py = pos
+    vx, vy = velocity
     fx, fy = 0.0, 0.0
     k = 1000.0
+    k_b = 100.0  # Magnetic field constant
     max_dist_sq = 40000.0  # 200 pixels squared
 
     if OPENCL_AVAILABLE and OPENCL_CTX:
@@ -199,6 +213,7 @@ def compute_field_at_point(pos, charges, charge_vals, loops, charge_val):
             charges_buf, charge_vals_buf, loops_buf,
             np.int32(num_charges), np.int32(num_loops),
             np.float32(px), np.float32(py), np.float32(charge_val),
+            np.float32(vx), np.float32(vy),
             result_buf
         )
         result = np.empty(2, dtype=np.float32)
@@ -207,23 +222,25 @@ def compute_field_at_point(pos, charges, charge_vals, loops, charge_val):
         return result[0], result[1]
 
     # NumPy: CPU fallback
-    for (cx, cy), val in zip(charges, charge_vals):
-        dx = px - cx
-        dy = py - cy
-        dist_sq = dx*dx + dy*dy + 5.0
-        if dist_sq <= max_dist_sq:
-            dist = np.sqrt(dist_sq)
-            e_strength = k * charge_val * val / dist_sq
-            fx += e_strength * dx / dist
-            fy += e_strength * dy / dist
+    if compute_electric:
+        for (cx, cy), val in zip(charges, charge_vals):
+            dx = px - cx
+            dy = py - cy
+            dist_sq = dx*dx + dy*dy + 5.0
+            if dist_sq <= max_dist_sq:
+                dist = np.sqrt(dist_sq)
+                e_strength = k * charge_val * val / dist_sq
+                fx += e_strength * dx / dist
+                fy += e_strength * dy / dist
 
-    for lx, ly in loops:
-        dx = px - lx
-        dy = py - ly
-        dist_sq = dx*dx + dy*dy + 5.0
-        if dist_sq <= max_dist_sq:
-            b_strength = 100.0 / dist_sq
-            fx += -b_strength * dy
-            fy += b_strength * dx
+    if compute_magnetic:
+        for lx, ly in loops:
+            dx = px - lx
+            dy = py - ly
+            dist_sq = dx*dx + dy*dy + 5.0
+            if dist_sq <= max_dist_sq:
+                b_z = k_b / dist_sq  # Magnetic field strength (out of plane)
+                fx += -charge_val * b_z * vy  # F_x = -q * B_z * v_y
+                fy += charge_val * b_z * vx   # F_y = q * B_z * v_x
 
     return fx, fy
